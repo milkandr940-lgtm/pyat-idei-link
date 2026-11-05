@@ -11,6 +11,9 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial
 // Вход на сайт — только по PIN, здесь лежит лишь ссылка.
 const REPO = 'milkandr940-lgtm/pyat-idei-link'
 const OFFLINE = 'https://pyat-idei.flafik.workers.dev/m'
+// Личный ключ из ссылки (#key=…): браузер не отправляет его ни GitHub, ни куда-либо ещё.
+const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || ''
+const SUFFIX = '/m' + (KEY ? '?key=' + encodeURIComponent(KEY) : '')
 const msg = document.getElementById('msg')
 async function current() {
   try { // GitHub API отдаёт свежий файл сразу (кэш Pages держит старый до 10 минут)
@@ -22,9 +25,9 @@ async function current() {
 }
 ;(async () => {
   const url = await current()
-  if (!url) { msg.innerHTML = 'ПК сейчас выключен. Сохранённая копия (нужен VPN): <a href="' + OFFLINE + '">открыть</a>'; return }
+  if (!url) { msg.innerHTML = 'ПК сейчас выключен. Сохранённая копия (нужен VPN): <a href="' + OFFLINE + SUFFIX.slice(2) + '">открыть</a>'; return }
   try { await fetch(url + '/m', { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(8000) }) } catch {
     msg.innerHTML = 'ПК не отвечает (выключен или перезапускается). Сохранённая копия (нужен VPN): <a href="' + OFFLINE + '">открыть</a> · <a href="">повторить</a>'; return }
-  location.replace(url + '/m')
+  location.replace(url + SUFFIX)
 })()
 </script></body></html>
