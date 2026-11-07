@@ -1,0 +1,51 @@
+<!doctype html><html lang="ru"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#05060d"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Пять идей">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png"><title>Пять идей</title>
+<style>#boot{font:16px/1.5 system-ui,sans-serif;color:#e8e9f3;background:#05060d;min-height:100vh;display:flex;
+flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+#boot a,#boot button{background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;border:0;border-radius:14px;
+padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}body{margin:0;background:#05060d}</style>
+</head><body><div id="boot">Загружаю…</div><div id="root"></div>
+<script>
+(function () {
+  var CLIENT = 'fe635abf5a754c899b9ed0274c4f12da'
+  var TAGS = [["script", "assets/mobile-BDfvf2iO.js"], ["modulepreload", "assets/index-CaAqLDA5.js"], ["stylesheet", "assets/index-D_vTlJnh.css"], ["stylesheet", "assets/mobile-BVS-hNxN.css"]]
+  var boot = document.getElementById('boot')
+  function say(html) { boot.innerHTML = html }
+  var hash = new URLSearchParams(location.hash.slice(1))
+  if (hash.get('access_token')) {
+    try { localStorage.setItem('vi_disk', hash.get('access_token')) } catch (e) {}
+    history.replaceState(null, '', location.pathname)
+  }
+  var token = ''
+  try { token = localStorage.getItem('vi_disk') || '' } catch (e) {}
+  if (!token) {
+    var back = location.origin + location.pathname
+    var url = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=' + CLIENT + '&redirect_uri=' + encodeURIComponent(back)
+    say('<h2>Пять идей без ПК</h2><p>ПК выключен — откроется копия с вашего Яндекс Диска.<br>Войдите один раз через Яндекс.</p>'
+      + '<a href="' + url + '">Войти через Яндекс</a><small>Приложение видит только свою папку на Диске</small>')
+    return
+  }
+  if (!('serviceWorker' in navigator)) { say('Этот браузер не умеет работать без ПК. Откройте в Chrome или Safari.'); return }
+  function start() {
+    caches.open('vi-auth').then(function (c) { return c.put('token', new Response(token)) }).then(function () {
+      boot.remove()
+      TAGS.forEach(function (t) {
+        var el
+        if (t[0] === 'script') { el = document.createElement('script'); el.type = 'module'; el.src = t[1] }
+        else { el = document.createElement('link'); el.rel = t[0]; el.href = t[1] }
+        el.crossOrigin = ''
+        document.head.appendChild(el)
+      })
+    })
+  }
+  navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready }).then(function () {
+    if (navigator.serviceWorker.controller) start()
+    else navigator.serviceWorker.addEventListener('controllerchange', start, { once: true })
+  }).catch(function (e) { say('Не удалось запустить офлайн-режим: ' + e) })
+})()
+</script></body></html>
