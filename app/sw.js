@@ -118,6 +118,13 @@ async function state() {
       if (clip && !data.filming.some((c) => c.id === id)) data.filming.unshift(clip)
     }
     data.filming = data.filming.filter((c) => !usedIds.has(c.id))
+    // «Для Claude» и загруженные исходники, отмеченные на телефоне, — сразу видны.
+    const uploaded = await local('sources', {})
+    for (const clip of data.filming) {
+      const marks = actions.filter((a) => a.id === clip.id && (a.rating === 'claude' || a.rating === 'unclaude'))
+      if (marks.length) clip.claude = marks[marks.length - 1].rating === 'claude'
+      clip.sources = (clip.sources || 0) + (uploaded[clip.id] || 0)
+    }
   }
   const extra = await local('ideas', [])
   data.ideas = [...extra, ...(data.ideas || [])]
@@ -172,6 +179,23 @@ async function handle(request, url) {
     if (m && request.method === 'POST') {
       await act(m[1], 'filming', false)
       return json({ saved: true, message: 'Перенесено в «Снимаю» (применится на ПК)' })
+    }
+    m = path.match(/^\/api\/claude\/(\d{10,25})$/)
+    if (m && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}))
+      await act(m[1], body.on === false ? 'unclaude' : 'claude', false)
+      return json({ saved: true, message: body.on === false ? 'Пометка снята' : 'Помечено для Claude (ПК подхватит, когда включится)' })
+    }
+    m = path.match(/^\/api\/sources\/(\d{10,25})$/)
+    if (m && request.method === 'POST') {
+      // Исходник — байт в байт на Диск (sources/<id>/), ПК потом заберёт его в папку монтажа.
+      const name = decodeURIComponent(request.headers.get('x-file-name') || 'video.mp4').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 150)
+      const blob = await request.blob()
+      await upload(`sources/${m[1]}/${Date.now()}-${name}`, blob)
+      const uploaded = await local('sources', {})
+      uploaded[m[1]] = (uploaded[m[1]] || 0) + 1
+      await saveLocal('sources', uploaded)
+      return json({ saved: true, message: `Загружено на Диск: ${name} (${Math.round(blob.size / 1048576)} МБ). ПК заберёт в папку монтажа` })
     }
     if (path === '/api/idea' && request.method === 'POST') return await nextIdea()
     return json({ detail: 'ПК выключен: это действие заработает, когда программа на ПК запустится' }, 503)
