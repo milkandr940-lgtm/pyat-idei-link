@@ -9,48 +9,10 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial
 .spin{width:38px;height:38px;border:3px solid #2c2a5a;border-top-color:#8b5cf6;border-radius:50%;margin:0 auto;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
 </style></head><body><div class="box"><div class="spin"></div><h1>Пять идей</h1><p id="msg">Ищу ваш компьютер…</p></div>
 <script>
-// Постоянная ссылка: программа на ПК при каждом запуске пишет сюда адрес своего туннеля.
-// Вход — по личному ключу после «#» (не уходит ни на GitHub, ни куда-либо ещё) или по PIN.
-var REPO = 'milkandr940-lgtm/pyat-idei-link'
-var OFFLINE = 'app/'  // копия с Яндекс Диска: работает без ПК и без VPN
+// Постоянная ссылка «Пять идей». Куда идти (на ПК или в копию с Яндекс Диска), решает приложение app/:
+// ПК раз в минуту отмечается на Диске, приложение читает отметку. Личный ключ после «#» — для входа на ПК.
 var KEY = new URLSearchParams(location.hash.slice(1)).get('key') || ''
-var SUFFIX = '/m' + (KEY ? '?key=' + encodeURIComponent(KEY) : '')
-var msg = document.getElementById('msg')
-function say(html) { msg.innerHTML = html }
-// Любой шаг ждём не дольше нескольких секунд — иначе медленная сеть телефона «вешает» страницу.
-function withTimeout(promise, ms) {
-  return Promise.race([promise, new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')) }, ms) })])
-}
-async function readUrl(source, options) {
-  try {
-    var r = await withTimeout(fetch(source, options), 5000)
-    if (!r.ok) return null
-    var data = JSON.parse(await withTimeout(r.text(), 5000))
-    return data && data.url ? data.url : null
-  } catch (e) { return null }
-}
-async function current() {
-  return (await readUrl('https://api.github.com/repos/' + REPO + '/contents/link.json?t=' + Date.now(), { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' }))
-    || (await readUrl('https://raw.githubusercontent.com/' + REPO + '/main/link.json?t=' + Date.now(), { cache: 'no-store' }))
-    || (await readUrl('link.json?t=' + Date.now(), { cache: 'no-store' }))
-}
-function offlineLink() { return '<a href="' + OFFLINE + '">копия с Яндекс Диска</a>' }
-;(async function () {
-  say('Читаю адрес компьютера…')
-  var url = await current()
-  if (!url) { say('ПК выключен — открываю копию с Яндекс Диска…<br>' + offlineLink()); location.replace(OFFLINE); return }
-  var target = url + SUFFIX
-  say('Подключаюсь к компьютеру…<br><a href="' + target + '">Открыть сайт напрямую</a>')
-  try {
-    // Отвечает ли сама программа: туннель tuna отвечает и при выключенном ПК, поэтому спрашиваем /api/alive.
-    var r = await withTimeout(fetch(url + '/api/alive?t=' + Date.now(), { cache: 'no-store', headers: { 'tuna-skip-browser-warning': '1' } }), 7000)
-    var alive = r.ok && (await withTimeout(r.json(), 5000)).ok
-    if (!alive) throw new Error('нет ответа программы')
-  } catch (e) {
-    say('ПК не отвечает — открываю копию с Яндекс Диска…<br><a href="' + target + '">Всё равно открыть ПК</a> · ' + offlineLink())
-    location.replace(OFFLINE)
-    return
-  }
-  location.replace(target)
-})()
+try { if (KEY) localStorage.setItem('vi_pair_key', KEY) } catch (e) {}
+document.getElementById('msg').textContent = 'Открываю…'
+location.replace('app/')
 </script></body></html>

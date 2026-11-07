@@ -13,7 +13,7 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
 <script>
 (function () {
   var CLIENT = 'fe635abf5a754c899b9ed0274c4f12da'
-  var TAGS = [["script", "assets/mobile-DzCcafd7.js"], ["modulepreload", "assets/index-CaAqLDA5.js"], ["stylesheet", "assets/index-D_vTlJnh.css"], ["stylesheet", "assets/mobile-BcrHX8tu.css"]]
+  var TAGS = [["script", "assets/mobile-CgMZOW9-.js"], ["modulepreload", "assets/index-CaAqLDA5.js"], ["stylesheet", "assets/index-D_vTlJnh.css"], ["stylesheet", "assets/mobile-BcrHX8tu.css"]]
   var boot = document.getElementById('boot')
   function say(html) { boot.innerHTML = html }
   var hash = new URLSearchParams(location.hash.slice(1))
@@ -30,6 +30,31 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
       + '<a href="' + url + '">Войти через Яндекс</a><small>Приложение видит только свою папку на Диске</small>')
     return
   }
+  // Куда идти: ПК раз в минуту отмечается на Диске (alive + адрес туннеля). Свежая отметка — открываем ПК.
+  say('Подключаюсь…')
+  var decided = false
+  function decide(cp) {
+    if (decided) return
+    decided = true
+    var fresh = cp && cp.url && (Date.now() / 1000 - Number(cp.alive || 0)) < 150
+    if (fresh && !/(^|[?&])offline=1/.test(location.search)) {
+      var key = ''
+      try { key = localStorage.getItem('vi_pair_key') || '' } catch (e) {}
+      say('ПК включён — открываю…')
+      location.replace(cp.url + '/m' + (key ? '?key=' + encodeURIComponent(key) : ''))
+    } else offline()
+  }
+  setTimeout(function () { decide(null) }, 7000)
+  fetch('https://cloud-api.yandex.net/v1/disk/resources?path=app:/key.json&fields=custom_properties',
+    { headers: { Authorization: 'OAuth ' + token }, cache: 'no-store' })
+    .then(function (r) {
+      if (r.status === 401) { try { localStorage.removeItem('vi_disk') } catch (e) {} location.reload(); return null }
+      return r.json()
+    })
+    .then(function (j) { if (j) decide(j.custom_properties || {}) })
+    .catch(function () { decide(null) })
+
+  function offline() {
   if (!('serviceWorker' in navigator)) { say('Этот браузер не умеет работать без ПК. Откройте в Chrome или Safari.'); return }
   function start() {
     caches.open('vi-auth').then(function (c) { return c.put('token', new Response(token)) }).then(function () {
@@ -47,5 +72,6 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
     if (navigator.serviceWorker.controller) start()
     else navigator.serviceWorker.addEventListener('controllerchange', start, { once: true })
   }).catch(function (e) { say('Не удалось запустить офлайн-режим: ' + e) })
+  }
 })()
 </script></body></html>
