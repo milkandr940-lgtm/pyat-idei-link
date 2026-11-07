@@ -7,7 +7,7 @@
 <link rel="icon" href="icons/icon-192.png"><title>nuxnux</title>
 <style>#boot{font:16px/1.5 system-ui,sans-serif;color:#e8e9f3;background:#05060d;min-height:100vh;display:flex;
 flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
-#boot a,#boot button{background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;border:0;border-radius:14px;
+#boot a,#boot button{cursor:pointer;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;border:0;border-radius:14px;
 padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}body{margin:0;background:#05060d}</style>
 </head><body><div id="boot">Загружаю…</div><div id="root"></div>
 <script>
@@ -23,23 +23,69 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
   }
   var token = ''
   try { token = localStorage.getItem('vi_disk') || '' } catch (e) {}
-  if (!token) {
+  // Ключ доступа из личной ссылки / APK (#key=…) — запоминаем: по нему вход и на ПК, и в копию на Диске.
+  if (hash.get('key')) {
+    try { localStorage.setItem('vi_pair_key', hash.get('key')) } catch (e) {}
+    history.replaceState(null, '', location.pathname + location.search)
+  }
+  var pairKey = ''
+  try { pairKey = localStorage.getItem('vi_pair_key') || '' } catch (e) {}
+  var enc = new TextEncoder()
+  // Гостевой пропуск: токен Диска, зашифрованный ключом доступа (guest.bin) или гостевым кодом (guest-code.bin).
+  function guestPass(kind, secret) {
+    return fetch('../data/' + (kind === 'key' ? 'guest.bin' : 'guest-code.bin') + '?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('нет пропуска'); return r.arrayBuffer() })
+      .then(function (buf) {
+        var b = new Uint8Array(buf)
+        if (kind === 'key') {
+          return crypto.subtle.digest('SHA-256', enc.encode('nuxnux-guest:' + secret)).then(function (raw) {
+            return { raw: raw, iv: b.slice(0, 12), ct: b.slice(12) } })
+        }
+        return crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveBits']).then(function (base) {
+          return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: b.slice(0, 16), iterations: 600000, hash: 'SHA-256' }, base, 256)
+        }).then(function (raw) { return { raw: raw, iv: b.slice(16, 28), ct: b.slice(28) } })
+      })
+      .then(function (x) {
+        return crypto.subtle.importKey('raw', x.raw, 'AES-GCM', false, ['decrypt']).then(function (k) {
+          return crypto.subtle.decrypt({ name: 'AES-GCM', iv: x.iv }, k, x.ct) })
+      })
+      .then(function (plain) { return JSON.parse(new TextDecoder().decode(plain)).token })
+  }
+  function useToken(t) { token = t; try { localStorage.setItem('vi_disk', t) } catch (e) {} go() }
+  function loginScreen(note) {
     var back = location.origin + location.pathname
     var url = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=' + CLIENT + '&redirect_uri=' + encodeURIComponent(back)
-    say('<h2>nuxnux</h2><p>Войдите один раз через <b>ваш</b> Яндекс (тот, где Диск с копией).<br>'
-      + 'Так приложение само поймёт: ПК включён — откроет ПК, выключен — копию с Диска.</p>'
-      + '<a href="' + url + '">Войти через Яндекс</a><small>Приложение видит только свою папку на Диске</small>'
-      + '<p id="direct"></p>')
+    say('<h2>nuxnux</h2>' + (note ? '<p style="color:#ffd36e">' + note + '</p>' : '')
+      + '<p>Гостевой код (16 цифр) — вход без Яндекса, работает и с ПК, и без ПК:</p>'
+      + '<input id="gcode" inputmode="numeric" placeholder="0000-0000-0000-0000" style="width:100%;max-width:320px;padding:13px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;font-size:18px;text-align:center">'
+      + '<button id="gbtn">Войти по коду</button>'
+      + '<small>или</small><a href="' + url + '">Войти через Яндекс (владелец Диска)</a><p id="direct"></p>')
+    document.getElementById('gbtn').onclick = function () {
+      var code = (document.getElementById('gcode').value || '').replace(/\D/g, '')
+      if (code.length !== 16) { loginScreen('В гостевом коде 16 цифр'); return }
+      say('Проверяю код…')
+      guestPass('code', code).then(function (t) {
+        try { localStorage.setItem('vi_pair_key', code) } catch (e) {}
+        pairKey = code; useToken(t)
+      }).catch(function () { loginScreen('Код не подошёл. Проверьте цифры или спросите новый код у владельца.') })
+    }
     // Без входа: адрес ПК из ссылки на GitHub — открыть ПК напрямую (работает, только когда ПК включён).
     fetch('https://api.github.com/repos/milkandr940-lgtm/pyat-idei-link/contents/link.json?t=' + Date.now(),
       { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null })
       .then(function (j) {
         var el = document.getElementById('direct')
-        if (j && j.url && el) el.innerHTML = '<a href="' + j.url + '/m" style="background:none;border:1px solid #333">Открыть ПК без входа</a>'
+        if (j && j.url && el) el.innerHTML = '<a href="' + j.url + '/m" style="background:none;border:1px solid #333">Открыть ПК без входа (по PIN)</a>'
       }).catch(function () {})
-    return
   }
+  if (token) go()
+  else if (pairKey && !sessionStorage.getItem('vi_guest_tried')) {
+    say('Вхожу…')
+    try { sessionStorage.setItem('vi_guest_tried', '1') } catch (e) {}
+    guestPass(/^\d{16}$/.test(pairKey) ? 'code' : 'key', pairKey).then(useToken).catch(function () { loginScreen('Ключ доступа устарел — войдите по коду или через Яндекс') })
+  } else loginScreen('')
+
+  function go() {
   // Куда идти: ПК раз в минуту отмечается на Диске (alive + адрес туннеля). Свежая отметка — открываем ПК.
   say('Подключаюсь…')
   var decided = false
@@ -48,8 +94,7 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
     decided = true
     var fresh = cp && cp.url && (Date.now() / 1000 - Number(cp.alive || 0)) < 150
     if (fresh && !/(^|[?&])offline=1/.test(location.search)) {
-      var key = ''
-      try { key = localStorage.getItem('vi_pair_key') || '' } catch (e) {}
+      var key = pairKey
       say('ПК включён — открываю…')
       location.replace(cp.url + '/m' + (key ? '?key=' + encodeURIComponent(key) : ''))
     } else offline()
@@ -82,6 +127,7 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
     if (navigator.serviceWorker.controller) start()
     else navigator.serviceWorker.addEventListener('controllerchange', start, { once: true })
   }).catch(function (e) { say('Не удалось запустить офлайн-режим: ' + e) })
+  }
   }
 })()
 </script></body></html>
