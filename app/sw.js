@@ -197,6 +197,11 @@ async function handle(request, url) {
       await saveLocal('sources', uploaded)
       return json({ saved: true, message: `Загружено на Диск: ${name} (${Math.round(blob.size / 1048576)} МБ). ПК заберёт в папку монтажа` })
     }
+    m = path.match(/^\/api\/unwant\/(\d{10,25})$/)
+    if (m && request.method === 'POST') {
+      await act(m[1], 'unwant', false)
+      return json({ saved: true, message: 'Убрано из «Хочу» (применится на ПК)' })
+    }
     if (path === '/api/idea' && request.method === 'POST') return await nextIdea()
     return json({ detail: 'ПК выключен: это действие заработает, когда программа на ПК запустится' }, 503)
   } catch (error) {
