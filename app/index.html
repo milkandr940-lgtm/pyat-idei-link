@@ -26,8 +26,18 @@ padding:14px 22px;font-size:17px;text-decoration:none}#boot small{color:#8b8fa8}
   if (!token) {
     var back = location.origin + location.pathname
     var url = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=' + CLIENT + '&redirect_uri=' + encodeURIComponent(back)
-    say('<h2>nuxnux без ПК</h2><p>ПК выключен — откроется копия с вашего Яндекс Диска.<br>Войдите один раз через Яндекс.</p>'
-      + '<a href="' + url + '">Войти через Яндекс</a><small>Приложение видит только свою папку на Диске</small>')
+    say('<h2>nuxnux</h2><p>Войдите один раз через <b>ваш</b> Яндекс (тот, где Диск с копией).<br>'
+      + 'Так приложение само поймёт: ПК включён — откроет ПК, выключен — копию с Диска.</p>'
+      + '<a href="' + url + '">Войти через Яндекс</a><small>Приложение видит только свою папку на Диске</small>'
+      + '<p id="direct"></p>')
+    // Без входа: адрес ПК из ссылки на GitHub — открыть ПК напрямую (работает, только когда ПК включён).
+    fetch('https://api.github.com/repos/milkandr940-lgtm/pyat-idei-link/contents/link.json?t=' + Date.now(),
+      { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (j) {
+        var el = document.getElementById('direct')
+        if (j && j.url && el) el.innerHTML = '<a href="' + j.url + '/m" style="background:none;border:1px solid #333">Открыть ПК без входа</a>'
+      }).catch(function () {})
     return
   }
   // Куда идти: ПК раз в минуту отмечается на Диске (alive + адрес туннеля). Свежая отметка — открываем ПК.
