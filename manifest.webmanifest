@@ -1,6 +1,6 @@
 {
-  "name": "Пять идей",
-  "short_name": "Пять идей",
+  "name": "nuxnux",
+  "short_name": "nuxnux",
   "description": "Ролики, идеи и съёмки — с ПК или с копии на Яндекс Диске",
   "start_url": "./",
   "scope": "./",
