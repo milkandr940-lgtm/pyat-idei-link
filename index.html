@@ -42,7 +42,10 @@ function offlineLink() { return '<a href="' + OFFLINE + '">копия с Янд�
   var target = url + SUFFIX
   say('Подключаюсь к компьютеру…<br><a href="' + target + '">Открыть сайт напрямую</a>')
   try {
-    await withTimeout(fetch(url + '/m', { mode: 'no-cors', cache: 'no-store' }), 6000)
+    // Отвечает ли сама программа: туннель tuna отвечает и при выключенном ПК, поэтому спрашиваем /api/alive.
+    var r = await withTimeout(fetch(url + '/api/alive?t=' + Date.now(), { cache: 'no-store', headers: { 'tuna-skip-browser-warning': '1' } }), 7000)
+    var alive = r.ok && (await withTimeout(r.json(), 5000)).ok
+    if (!alive) throw new Error('нет ответа программы')
   } catch (e) {
     say('ПК не отвечает — открываю копию с Яндекс Диска…<br><a href="' + target + '">Всё равно открыть ПК</a> · ' + offlineLink())
     location.replace(OFFLINE)
