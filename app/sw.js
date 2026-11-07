@@ -56,13 +56,6 @@ async function href(path) {
   return link
 }
 
-async function readJson(path) {
-  const link = await href(path)
-  if (!link) return null
-  const response = await fetch(link, { cache: 'no-store' })
-  return response.ok ? response.json() : null
-}
-
 async function upload(path, body) {
   let target = await api('/upload', { path: 'app:/' + path, overwrite: 'true' })
   if (target.status === 409) { // нет папки — создаём и пробуем снова
@@ -74,9 +67,32 @@ async function upload(path, body) {
   if (!put.ok && put.status !== 201 && put.status !== 202) throw new Error('Загрузка не удалась: ' + put.status)
 }
 
+// Снимок зашифрован (AES-256-GCM) и лежит рядом со страницей: ../data/snapshot.bin.
+// Ключ — в свойствах файла key.json на Диске, его отдаёт только API с вашим входом.
+async function diskKey() {
+  const response = await api('', { path: 'app:/key.json', fields: 'custom_properties' })
+  if (!response.ok) return null
+  const k = ((await response.json()).custom_properties || {}).k
+  if (!k) return null
+  const raw = Uint8Array.from(atob(k), (c) => c.charCodeAt(0))
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt'])
+}
+
+async function readSnapshot() {
+  const key = await diskKey()
+  if (!key) return null
+  const url = new URL('../data/snapshot.bin?t=' + Date.now(), self.registration.scope)
+  const response = await fetch(url, { cache: 'no-store' })
+  if (!response.ok) return null
+  const blob = new Uint8Array(await response.arrayBuffer())
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: blob.slice(0, 12) }, key, blob.slice(12))
+  const text = await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+  return JSON.parse(text)
+}
+
 async function snapshot() {
   try {
-    const fresh = await readJson('snapshot.json')
+    const fresh = await readSnapshot()
     if (fresh) { await saveLocal('snapshot', fresh); return fresh }
   } catch (error) {
     if (error instanceof AuthError) throw error
