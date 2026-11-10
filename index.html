@@ -9,10 +9,33 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;c
 .spin{width:38px;height:38px;border:3px solid #27272a;border-top-color:#e4e4e7;border-radius:50%;margin:0 auto;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
 </style></head><body><div class="box"><div class="spin"></div><h1>nuxnux</h1><p id="msg">Ищу ваш компьютер…</p></div>
 <script>
-// Постоянная ссылка «Пять идей». Куда идти (на ПК или в копию с Яндекс Диска), решает приложение app/:
-// ПК раз в минуту отмечается на Диске, приложение читает отметку. Личный ключ после «#» — для входа на ПК.
+// Постоянная ссылка: сначала link.json + /api/alive (живой Cloudflare/tuna), иначе офлайн app/.
 var KEY = new URLSearchParams(location.hash.slice(1)).get('key') || ''
 try { if (KEY) localStorage.setItem('vi_pair_key', KEY) } catch (e) {}
-document.getElementById('msg').textContent = 'Открываю…'
-location.replace('app/?v=' + Date.now())  // всегда свежая версия приложения
+var msg = document.getElementById('msg')
+msg.textContent = 'Ищу ПК…'
+function offline() {
+  msg.textContent = 'Открываю…'
+  location.replace('app/?v=' + Date.now() + (KEY ? '#key=' + encodeURIComponent(KEY) : ''))
+}
+fetch('link.json?t=' + Date.now(), { cache: 'no-store' })
+  .then(function (r) { return r.ok ? r.json() : null })
+  .then(function (j) {
+    if (!j || !j.url) throw new Error('нет адреса')
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort() }, 8000)
+    return fetch(j.url + '/api/alive', {
+      cache: 'no-store', mode: 'cors', signal: ctrl && ctrl.signal,
+      headers: { 'tuna-skip-browser-warning': '1' }
+    }).then(function (r) {
+      clearTimeout(timer)
+      if (!r.ok) throw new Error('не отвечает')
+      return j.url
+    })
+  })
+  .then(function (url) {
+    msg.textContent = 'ПК включён — открываю…'
+    location.replace(url + '/m' + (KEY ? '?key=' + encodeURIComponent(KEY) : ''))
+  })
+  .catch(offline)
 </script></body></html>
