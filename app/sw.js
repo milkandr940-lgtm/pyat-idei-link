@@ -106,6 +106,13 @@ async function state() {
   const actions = (await local('actions', [])).filter((a) => Date.now() - a.ts < 14 * 86400000)
   const done = new Set(actions.map((a) => a.id))
   const pool = [...(data.wanted || []), ...(data.candidates || []), ...(data.qwen || [])]
+  data.liked_memes = data.liked_memes || []
+  for (const action of actions.filter((a) => a.rating === 'meme_like')) {
+    const clip = pool.find((c) => c.id === action.id)
+    if (clip && !data.liked_memes.some((c) => c.id === clip.id)) {
+      data.liked_memes.unshift({ ...clip, meme_save_status: 'pending' })
+    }
+  }
   for (const key of ['candidates', 'qwen', 'wanted']) {
     if (Array.isArray(data[key])) data[key] = data[key].filter((c) => !done.has(c.id))
   }
@@ -174,6 +181,11 @@ async function handle(request, url) {
       if (!['suitable', 'unsuitable', 'used'].includes(body.rating)) return json({ detail: 'Неизвестная оценка' }, 400)
       await act(m[1], body.rating, body.want)
       return json({ saved: true, message: 'ПК выключен: оценка сохранена на Диске и применится, когда ПК включится' })
+    }
+    m = path.match(/^\/api\/meme-like\/(\d{10,25})$/)
+    if (m && request.method === 'POST') {
+      await act(m[1], 'meme_like', false)
+      return json({ saved: true, message: 'Лайк сохранён. Видео скачается, когда включится ПК.' })
     }
     m = path.match(/^\/api\/filming\/(\d{10,25})$/)
     if (m && request.method === 'POST') {
