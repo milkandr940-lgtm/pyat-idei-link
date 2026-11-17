@@ -24,12 +24,16 @@ fetch('link.json?t=' + Date.now(), { cache: 'no-store' })
     if (!j || !j.url) throw new Error('нет адреса')
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
     var timer = setTimeout(function () { if (ctrl) ctrl.abort() }, 8000)
-    return fetch(j.url + '/api/alive', {
+    // Бесплатный tuna отвечает браузеру страницей-предупреждением (и на CORS-preflight) — /api/alive не прочитать,
+    // поэтому для tuna проверяем только доступность туннеля; «Посетить» на его странице нажимают один раз.
+    var host = j.url.split('/')[2] || ''
+    var tuna = ['.tuna.am', '.tuna.free', '.2na.am'].some(function (d) { return host.slice(-d.length) === d })
+    return fetch(j.url + '/api/alive', tuna ? { cache: 'no-store', mode: 'no-cors', signal: ctrl && ctrl.signal } : {
       cache: 'no-store', mode: 'cors', signal: ctrl && ctrl.signal,
       headers: { 'tuna-skip-browser-warning': '1' }
     }).then(function (r) {
       clearTimeout(timer)
-      if (!r.ok) throw new Error('не отвечает')
+      if (!tuna && !r.ok) throw new Error('не отвечает')
       return j.url
     })
   })
